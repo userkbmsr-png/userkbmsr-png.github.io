@@ -1,5 +1,3 @@
-<p>HTML
-&lt;!DOCTYPE html&gt;</p>
 <p><html lang="en"></p>
 <p><head></p>
 <p><meta charset="UTF-8"></p>
@@ -39,26 +37,19 @@ overflow-x: auto;
 </style>
 </head></p>
 <body>
-
 <h2>MediaRR</h2>
-
 <p>A one-command installer that sets up a complete, self-hosted media automation stack using Docker and using kiosk mode (Chrome)</p>
-
 <h3>What&#39;s included</h3>
-
 <h4>Media player</h4>
 <ul>
 <li><a href="https://www.stremio.com/">Stremio</a> — run directly on connected TV or Monitor, or on port 8000 (autostart on screen)</li>
 <li><a href="https://nuvio.tv">Nuvio</a> — free, open-source media app, can be opened by selector Mod+Shift+r</li>
 </ul>
-
 <h4>Media server</h4>
 <ul>
 <li><a href="https://jellyfin.org/">Jellyfin</a> — fully open source</li>
 </ul>
-
 <h4>Media management (*arr stack)</h4>
-
 <table>
 <thead>
 <tr>
@@ -95,12 +86,10 @@ overflow-x: auto;
 </tr>
 </tbody>
 </table>
-
 <h4>Download client</h4>
 <ul>
 <li><a href="https://www.qbittorrent.org/">qBittorrent</a> — torrent client, port 8080</li>
 </ul>
-
 <h4>Behind the scenes</h4>
 <ul>
 <li>
@@ -108,22 +97,16 @@ overflow-x: auto;
 — helps Prowlarr&#39;s indexers get past Cloudflare challenges. No web UI you need to visit; it just needs to be running.
 </li>
 </ul>
-
 <p>All services share one Docker network (<code>yams_network</code>) so they can talk to each other directly.</p>
-
 <h3>Requirements</h3>
 <ul>
 <li>A Debian/Ubuntu-based Linux system (tested on Debian 12/13, Ubuntu 22.04/26.04.1 LTS)</li>
 <li>A regular (non-root) user with sudo access — <strong>the installer refuses to run as root</strong></li>
 <li>Docker &amp; Docker Compose — the installer offers to install these for you if missing</li>
 </ul>
-
 <h3>Installation</h3>
-
 <pre><code>curl -fsSL <a href="https://raw.githubusercontent.com/userkbmsr-png/MediaRR/main/install-mediarr.sh">https://raw.githubusercontent.com/userkbmsr-png/MediaRR/main/install-mediarr.sh</a> | sudo bash</code></pre>
-
 <h3>Usage</h3>
-
 <h2>Mouse</h2>
 <ul>
 <li>Click = play pointed item</li>
@@ -138,7 +121,6 @@ overflow-x: auto;
 (double click to open)
 </li>
 </ul>
-
 <h2>Keyboard</h2>
 <ul>
 <li>F1 show rofi (window switcher)</li>
@@ -150,16 +132,13 @@ overflow-x: auto;
 <li>Esc hide rofi (window switcher)</li>
 <li>Enter run selection and hide rofi (window switcher)</li>
 </ul>
-
 <h3>Directory layout</h3>
-
 <pre><code>&lt;install_directory&gt;/ # default: /opt/yams
 ├── docker-compose.yaml
 ├── docker-compose.custom.yaml
 ├── .env
 └── config/
 # one subfolder per service
-
 &lt;media_directory&gt;/ # default: /srv/media
 ├── tvshows/
 ├── movies/
@@ -168,9 +147,7 @@ overflow-x: auto;
 └── downloads/
 └── torrents/
 </code></pre>
-
 <h3>Managing YAMS</h3>
-
 <pre><code>yams --help
 yams status
 yams start
@@ -181,24 +158,11 @@ yams backup /path/to/backup
 yams update-containers
 yams destroy
 </code></pre>
-
-<p>Service URLs are printed at the end of installation and saved to <code>~/yams_services.txt</code>.</p>
-
-<h3>Adding your own services</h3>
-
-<p>
-<code>docker-compose.custom.yaml</code> is loaded alongside the main compose file and already joins the shared
-<code>yams_network</code>. Add any extra container there instead of editing the generated
-<code>docker-compose.yaml</code> directly.
-</p>
-
 <h3>Credits</h3>
-
 <p>
 Forked from and originally built on
 <a href="https://github.com/rogsme/yams">rogsme/yams</a>.
 <br>
 Vibecoded with Claude Sonnet 5 — directed and tested by the repo owner.
 </p>
-
 </body>
