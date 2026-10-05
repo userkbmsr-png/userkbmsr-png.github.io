@@ -1,0 +1,228 @@
+#!/bin/bash
+set -euo pipefail
+
+# Constants
+readonly DC="docker compose -f <filename> -f <custom_file_filename>"
+readonly INSTALL_DIRECTORY="<install_directory>"
+readonly TIMEOUT_SECONDS=60
+
+# Color codes for better readability
+readonly RED='\033[0;31m'
+readonly GREEN='\033[0;32m'
+readonly YELLOW='\033[1;33m'
+readonly NC='\033[0m' # No Color
+
+# Functions
+log_success() {
+    echo -e "${GREEN}$1${NC}"
+}
+
+log_error() {
+    echo -e "${RED}$1${NC}" >&2
+    exit 1
+}
+
+log_warning() {
+    echo -e "${YELLOW}$1${NC}"
+}
+
+show_help() {
+    echo "yams - Yet Another Media Server"
+    echo
+    echo "Usage: yams [command] [options]"
+    echo
+    echo "Commands:"
+    echo "  --help            displays this help message"
+    echo "  restart           restarts yams services (can specify service names)"
+    echo "  stop              stops all yams services (can specify service names)"
+    echo "  start             starts yams services (can specify service names)"
+    echo "  status            checks yams services status"
+    echo "  destroy           destroy yams services so you can start from scratch (can specify service names)"
+    echo "  backup            backs up yams to the destination location"
+    echo "  update-containers updates all yams containers"
+    echo
+    echo "Examples:"
+    echo "  yams start              # Start all YAMS services"
+    echo "  yams start jellyfin     # Start the 'jellyfin' service"
+    echo "  yams stop jellyfin      # Stop the 'jellyfin' service"
+    echo "  yams restart jellyfin   # Restart the 'jellyfin' service"
+    echo "  yams destroy jellyfin   # Destroy the 'jellyfin' service"
+    echo "  yams backup /path/to/backup  # Backup YAMS to specified directory"
+}
+
+wait_for_services() {
+    local wait_time=0
+    echo -n "Waiting for services to start"
+
+    while [ $wait_time -lt $TIMEOUT_SECONDS ]; do
+        # Get the total number of services and number of running services
+        local total_services
+        local running_services
+
+        total_services=$($DC ps --format '{{.Name}}' | wc -l)
+        running_services=$($DC ps --format '{{.Status}}' | grep -c "Up")
+
+        if [ "$total_services" -eq "$running_services" ]; then
+            echo
+            log_success "All $total_services services are up and running!"
+            return 0
+        fi
+
+        # Show progress with count
+        echo -n "."
+        sleep 1
+        ((wait_time++))
+
+        # Every 10 seconds, show status
+        if [ $((wait_time % 10)) -eq 0 ]; then
+            echo
+            echo -n "$running_services/$total_services services running"
+        fi
+    done
+
+    echo
+    log_error "Not all services started within ${TIMEOUT_SECONDS} seconds ($running_services/$total_services running)"
+}
+
+backup_yams() {
+    local destination=$1
+    local backup_date
+    backup_date=$(date '+%Y-%m-%d-%s')
+    local backup_file="$destination/yams-backup-$backup_date.tar.gz"
+
+    echo "Stopping YAMS services..."
+    $DC stop > /dev/null 2>&1 || log_error "Failed to stop services"
+
+    echo -e "\nBacking up YAMS to $destination..."
+    echo "This may take a while depending on the size of your installation."
+    echo "Please wait... ⌛"
+
+    # Copy current yams script and create backup
+    cp "$(which yams)" "$INSTALL_DIRECTORY" || log_warning "Failed to backup yams script"
+    tar --exclude='transcoding-temp' --exclude='config/jellyfin/cache' -czf "$backup_file" -C "$INSTALL_DIRECTORY" . ||
+        log_error "Failed to create backup archive"
+
+    echo -e "\nStarting YAMS services..."
+    $DC start > /dev/null 2>&1 || log_warning "Failed to restart services"
+
+    log_success "Backup completed successfully! 🎉"
+    echo "Backup file: $backup_file"
+}
+
+destroy_yams() {
+    # Destroy all services or specific ones
+    if [ "$#" -eq 0 ]; then
+        echo -e "\nWARNING: This will destroy all your YAMS services, containers, volumes, and the custom network!"
+        echo "This is not recoverable! ⚠️ 🚨"
+        read -p "Are you sure you want to continue? [y/N]: " -r
+        if [[ ${REPLY,,} =~ ^y$ ]]; then
+            $DC down || log_error "Failed to destroy services"
+            docker network rm yams_network || log_warning "Failed to remove yams_network. It might not exist or was already removed."
+            echo -e "\nYAMS services were destroyed. To restart, run: yams start"
+        fi
+    else
+        local services=("$@")
+        local target_label=$(printf '%s ' "${services[@]}")
+        echo -e "\nWARNING: This will destroy the service(s) you listed: \"${target_label}\". This includes their associated containers and volumes!"
+        echo "This is not recoverable! ⚠️ 🚨"
+        read -p "Are you sure you want to continue? [y/N]: " -r
+        if [[ ${REPLY,,} =~ ^y$ ]]; then
+            $DC stop "$@" || log_error "Failed to stop services"
+            $DC rm  -f -v "$@" || log_error "Failed to destroy services"
+            echo -e "\nYAMS service was destroyed. To restart, run: yams start"
+        fi
+    fi
+}
+
+start_yams() {
+    # Start all services or specific ones
+    if [ "$#" -eq 0 ]; then
+        $DC up -d || log_error "Failed to start services"
+        wait_for_services
+    else
+        $DC up -d "$@" || log_error "Failed to start services" 
+    fi
+    
+}
+
+restart_yams() {
+    # Restart all services or specific ones
+    if [ "$#" -eq 0 ]; then
+        $DC stop && $DC up -d
+        wait_for_services
+    else
+        $DC stop "$@" && $DC up -d "$@"
+    fi
+    
+}
+
+stop_yams() {
+    # Stop all services or specific ones
+    if [ $# -eq 0 ]; then
+        $DC stop || log_error "Failed to stop services"
+    else
+        $DC stop "$@" || log_error "Failed to stop services: $*"
+    fi
+    log_success "Services stopped successfully"
+}
+
+check_yams() {
+    $DC ps || log_error "Failed to check services"
+}
+
+update_containers() {
+    echo -e "\nWARNING: Updating containers may cause data loss or compatibility issues if new versions have breaking changes!"
+    echo "Consider running 'yams backup /path/to/backup' first to create a backup."
+    read -p "Are you sure you want to update all containers? [y/N]: " -r
+    if [[ ${REPLY,,} =~ ^y$ ]]; then
+        echo "Pulling latest container images..."
+        $DC pull || log_error "Failed to pull containers"
+        echo "Restarting YAMS services..."
+        restart_yams
+        log_success "Containers updated successfully!"
+    else
+        echo "Update aborted."
+    fi
+}
+
+main() {
+    local command=${1:-"--help"}
+    local destination=${2:-.}
+
+    # Validate and normalize destination path if provided
+    if [ "$command" = "backup" ]; then
+        destination=$(realpath "$destination") || log_error "Invalid backup destination path"
+    fi
+
+    case "$command" in
+        --help)
+            show_help
+            ;;
+        restart)
+            restart_yams "${@:2}"
+            ;;
+        stop)
+            stop_yams "${@:2}"
+            ;;
+        start)
+            start_yams "${@:2}"
+            ;;
+        status)
+            check_yams
+            ;;
+        destroy)
+            destroy_yams "${@:2}"
+            ;;
+        backup)
+            backup_yams "$destination"
+            ;;
+        update-containers)
+            update_containers
+            ;;
+        *)
+            log_error "Unknown command: $command\nRun 'yams --help' for usage information"
+            ;;
+    esac
+}
+
+main "$@"
